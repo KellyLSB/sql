@@ -119,6 +119,33 @@ class Connection {
 				if(!empty($dcs['user'])) $dsn .= 'user='.$dcs['user'].';';
 				if(!empty($dcs['pass'])) $dsn .= 'password='.$dcs['pass'].';';
 			break;
+
+			// SQLite 3 Connection
+			case 'sqlite3':
+			case 'sqlite':
+				$dsn = 'sqlite:';
+
+				// Store in memory
+				if(!empty($dcs['host']) && $dcs['host'] === 'memory')
+					$dsn .= ':memory:';
+
+				// Use disk storage
+				if(!empty($dcs['path']) && empty($dcs['host']))
+					$dsn .= $dcs['path'];
+			break;
+
+			// SQLite 2 Connection
+			case 'sqlite2':
+				$dsn = 'sqlite2:';
+
+				// Store in memory
+				if(!empty($dcs['host']) && $dcs['host'] === 'memory')
+					$dsn .= ':memory:';
+
+				// Use disk storage
+				if(!empty($dcs['path']) && empty($dcs['host']))
+					$dsn .= $dcs['path'];
+			break;
 		}
 
 		// Return DSN
@@ -134,6 +161,10 @@ class Connection {
 
 		// Set slug to the object
 		$this->slug = $slug;
+
+		// If we already have this connection instantiated then go ahead and return
+		if(!empty(self::$__connection[$slug]) && self::$__connection[$slug] instanceof Connection)
+			return;
 
 		// Get the database connection
 		$url = e::$environment->requireVar(
@@ -172,8 +203,10 @@ class Connection {
 		$timerStart = microtime(true);
 
 		try {
-			// Prepare and run query
-			$result = self::$__connection[$this->slug]->prepare($query);
+			// Prepare query
+			$result = self::$__connection[$this->slug]->prepare($query, array(PDO::ATTR_CURSOR => PDO::CURSOR_SCROLL));
+
+			// Run query
 			$result->execute();
 
 			// If there is any kind of error info throw an exception
@@ -208,7 +241,7 @@ class Connection {
 		else return true;
 
 		// Return QueryResult
-		return QueryResult($this, $result);
+		return new QueryResult($this, $result);
 	}
 
 	/**
@@ -229,8 +262,6 @@ class Connection {
 			$query = str_replace('?', '\'%s\'', $query);
 			$query = vsprintf($query, $args);
 		}
-
-		dump($query);
 
 		// Enter Trace
 		e\trace_enter("SQL Query on `$this->slug`", $query, $args, 7);

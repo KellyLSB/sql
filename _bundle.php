@@ -19,6 +19,12 @@ class Bundle {
 
 	public function _on_router_route($path) {
 		include(e\site . '/tmp.html');
+		$result = $this->__callBundle()->query("SELECT * FROM `members.account`");
+		//dump($result->all());
+		foreach($result as $r) {
+			var_dump($r);
+			echo "<br /><br />";
+		}
 		e\Complete();
 	}
 
