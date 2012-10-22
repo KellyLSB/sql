@@ -236,10 +236,13 @@ class Connection {
 		e\trace_enter("SQL Query on `$this->slug`", $query, $args, 7);
 
 		// Run Main Query Function
-		$this->__query($query);
+		$result = $this->__query($query);
 
 		// Exit Trace
 		e\trace_exit();
+
+		// Return result
+		return $result;
 	}
 
 }
