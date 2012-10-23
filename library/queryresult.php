@@ -48,8 +48,12 @@ class QueryResult implements Iterator, Countable {
 	 * @author Kelly Becker
 	 * @since Oct 22nd, 2012
 	 */
-	public function fetch() {
-		return $this->__statement->fetch(PDO::FETCH_ASSOC);
+	public function fetch($reset = false) {
+		if($reset) $this->rewind();
+		if(!$this->valid()) return false;
+		$result = $this->current();
+		$this->next();
+		return $result;
 	}
 
 	/**

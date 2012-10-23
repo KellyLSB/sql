@@ -21,13 +21,9 @@ class Bundle {
 	public function _on_router_route($path) {
 		include(e\site . '/tmp.html');
 		$result = $this->__callBundle()
-			->newList("members.account")
-			->joins("RIGHT JOIN `cms.page` ON `cms.page`.`id` = `members.account`.`id`")
-			//->where('`members.account`.`id` = ?', 1);
-			->order('`members.account`.`id`', 'DESC')
-			->limit(5,5);
+			->newModel('members.account', 1);
 
-		//dump($result);
+		dump($result['id']);
 		//dump($result->buildQuery());
 		dump($result->all());
 		foreach($result as $r) {

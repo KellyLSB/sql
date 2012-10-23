@@ -284,12 +284,78 @@ class Connection {
 	}
 
 	/**
+	 * Basic select
+	 * @author Kelly Becker
+	 * @since Oct 22nd, 2012
+	 */
+	public function select() {
+
+		// Handle arguments
+		$args = func_get_args();
+		$table = array_shift($args);
+		$where = array_shift($args);
+
+		// Preare select query
+		array_unshift($args, "SELECT * FROM `$table` $where");
+
+		// Run query
+		return call_user_func_array(array($this, 'query'), $args);
+	}
+
+	/**
+	 * Get a row by table, id
+	 * @author Kelly Becker
+	 * @since Oct 22nd, 2012
+	 */
+	public function find($table, $id) {
+		return $this->select($table, 'WHERE `id` = ?', $id)->fetch();
+	}
+
+	/**
 	 * Get a list object
 	 * @author Kelly Becker
 	 * @since Oct 22nd, 2012
 	 */
 	public function newList($table) {
 		return new QueryList($this, $table);
+	}
+
+	/**
+	 * Get a model object
+	 * @author Kelly Becker
+	 * @since Oct 22nd, 2012
+	 */
+	public function newModel($table, $id = false) {
+		return new QueryModel($this, $table, $id);
+	}
+
+	/**
+	 * Get the table columns
+	 * @author Kelly Becker
+	 * @since Oct 22nd, 2012
+	 */
+	public function getColumns($table) {
+		if(e::$cache->timestamp('sql_table_columns', $table) > (time() - 86400))
+			return e::$cache->get('sql_table_columns', $table);
+
+		// Describe the table
+		$columns = $this->query("DESCRIBE `$table`;");
+
+		// If there is more then 0 columns
+		if($columns->count() > 0) {
+			$fields = array();
+
+			// Loop through the columns
+			foreach($columns as $column)
+				$fields[$column['Field']] = $column;
+
+			// Cache the columns and return
+			e::$cache->store('sql_table_columns', $table, $fields);
+			return $fields;
+		}
+
+		// Return false if none found
+		else return false;
 	}
 
 }
