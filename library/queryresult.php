@@ -16,11 +16,12 @@ use Countable;
 class QueryResult implements Iterator, Countable {
 
 	// Store the connection and statement
-	private $__connection;
-	private $__statement;
+	protected $__connection;
+	protected $__statement;
 
-	// Pointer location
-	private $_cursor = 0;
+	// Pointer location and results
+	protected $__cursor = 0;
+	protected $__results = array();
 
 	/**
 	 * Construct Query Result
@@ -30,6 +31,7 @@ class QueryResult implements Iterator, Countable {
 	public function __construct(Connection $connection, PDOStatement $statement) {
 		$this->__connection = $connection;
 		$this->__statement = $statement;
+		$this->__results = $this->all();
 	}
 
 	/**
@@ -37,8 +39,17 @@ class QueryResult implements Iterator, Countable {
 	 * @author Kelly Becker
 	 * @since Oct 22nd, 2012
 	 */
-	public function insertId() {
+	public final function insertId() {
 		return $this->__connection->lastInsertId();
+	}
+
+	/**
+	 * Fetch a row in the statment
+	 * @author Kelly Becker
+	 * @since Oct 22nd, 2012
+	 */
+	public function fetch() {
+		return $this->__statement->fetch(PDO::FETCH_ASSOC);
 	}
 
 	/**
@@ -56,20 +67,16 @@ class QueryResult implements Iterator, Countable {
 	 * @since Oct 22nd, 2012
 	 */
 	public function rewind() {
-		$this->_cursor = 0;
+		$this->__cursor = 0;
 	}
 
 	/**
-	 * Return the current result
+	 * Get the current row in the statment
 	 * @author Kelly Becker
 	 * @since Oct 22nd, 2012
 	 */
 	public function current() {
-		return $this->__statement->fetch(
-			PDO::FETCH_ASSOC,
-			PDO::FETCH_ORI_ABS,
-			$this->_cursor
-		);
+		return $this->__results[$this->__cursor];
 	}
 
 	/**
@@ -78,7 +85,7 @@ class QueryResult implements Iterator, Countable {
 	 * @since Oct 22nd, 2012
 	 */
 	public function key() {
-		return $this->_cursor;
+		return $this->__cursor;
 	}
 
 	/**
@@ -87,7 +94,7 @@ class QueryResult implements Iterator, Countable {
 	 * @since Oct 22nd, 2012
 	 */
 	public function next() {
-		$this->_cursor++;
+		$this->__cursor++;
 	}
 	
 	/**
@@ -96,7 +103,7 @@ class QueryResult implements Iterator, Countable {
 	 * @since Oct 22nd, 2012
 	 */
 	public function valid() {
-		return $this->current() !== false;
+		return !is_null($this->current());
 	}
 
 	/**

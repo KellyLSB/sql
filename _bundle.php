@@ -14,16 +14,15 @@ class Bundle {
 	public function __callBundle($slug = 'default') {
 		error_reporting(E_ALL);
 		ini_set('display_errors', '1');
+		ini_set('memory_limit', '-1');
 		return new Connection($slug);
 	}
 
 	public function _on_router_route($path) {
 		include(e\site . '/tmp.html');
-		$result = $this->__callBundle()->query("SELECT * FROM `members.account`");
-		//dump($result->all());
+		$result = $this->__callBundle()->newList("members.account");
 		foreach($result as $r) {
-			var_dump($r);
-			echo "<br /><br />";
+			var_dump($r);echo("<br /><Br />");
 		}
 		e\Complete();
 	}

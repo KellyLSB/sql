@@ -50,6 +50,7 @@ class Connection {
 
 	private static $__connection = array();
 	private static $__queryLog = array();
+	public $raw = false;
 	private $slug;
 
 	/**
@@ -183,7 +184,7 @@ class Connection {
 			self::$__queryLog[$slug] = array();
 
 			// Run a test query to make sure everything is set
-			$this->__query('SHOW TABLES', true);
+			$this->__query('SHOW TABLES', false, true);
 		}
 
 		// If there was a PDOException
@@ -197,14 +198,14 @@ class Connection {
 	 * @author Kelly Becker
 	 * @since Oct 22nd, 2012
 	 */
-	private final function __query($query, $test = false) {
+	private final function __query($query, $raw = false, $test = false) {
 
 		// Start the timer
 		$timerStart = microtime(true);
 
 		try {
 			// Prepare query
-			$result = self::$__connection[$this->slug]->prepare($query, array(PDO::ATTR_CURSOR => PDO::CURSOR_SCROLL));
+			$result = self::$__connection[$this->slug]->prepare($query);
 
 			// Run query
 			$result->execute();
@@ -240,6 +241,12 @@ class Connection {
 		// If test return success
 		else return true;
 
+		// If we should return PDOStatement Directly
+		if($raw) {
+			$this->raw = false;
+			return $result;
+		}
+
 		// Return QueryResult
 		return new QueryResult($this, $result);
 	}
@@ -267,13 +274,22 @@ class Connection {
 		e\trace_enter("SQL Query on `$this->slug`", $query, $args, 7);
 
 		// Run Main Query Function
-		$result = $this->__query($query);
+		$result = $this->__query($query, $this->raw);
 
 		// Exit Trace
 		e\trace_exit();
 
 		// Return result
 		return $result;
+	}
+
+	/**
+	 * Get a list object
+	 * @author Kelly Becker
+	 * @since Oct 22nd, 2012
+	 */
+	public function newList($table) {
+		return new QueryList($this, $table);
 	}
 
 }
