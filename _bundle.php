@@ -21,9 +21,9 @@ class Bundle {
 	public function _on_router_route($path) {
 		include(e\site . '/tmp.html');
 		$result = $this->__callBundle()
-			->newModel('members.account', 1);
+			->newModel('members.account');
 
-		dump($result['id']);
+		dump($result->save(array('first_name' => 'george', 'id' => 2)));
 		//dump($result->buildQuery());
 		dump($result->all());
 		foreach($result as $r) {

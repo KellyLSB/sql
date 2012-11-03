@@ -32,6 +32,7 @@ class QueryException extends Exception {
 	 * @since Oct 22nd, 2012
 	 */
 	public function __construct($message = null, $query = null, $code = 0, Exception $previous = null) {
+		$message .= ": \"$query\"";
 		parent::__construct($message, $code, $previous);
 		if(!is_null($query)) $this->query = $query;
 	}
@@ -50,6 +51,7 @@ class Connection {
 
 	private static $__connection = array();
 	private static $__queryLog = array();
+	private $__scheme;
 	public $raw = false;
 	private $slug;
 
@@ -58,7 +60,7 @@ class Connection {
 	 * @author Kelly Becker
 	 * @since Oct 22nd, 2012
 	 */
-	private final function __parseDSN($dcs, &$username = null, &$password = null) {
+	private final function __parseDSN($dcs, &$username = null, &$password = null, &$scheme = null) {
 
 		// Parse URL
 		$dcs = parse_url($dcs);
@@ -79,6 +81,9 @@ class Connection {
 				// Database name
 				$dsn .= 'dbname='.substr($dcs['path'], 1).';';
 
+				// DB Scheme
+				$scheme = 'mysql';
+
 				// User Authentication
 				if(!empty($dcs['user'])) $username = $dcs['user'];
 				if(!empty($dcs['pass'])) $password = $dcs['pass'];
@@ -98,6 +103,9 @@ class Connection {
 				// Database name
 				$dsn .= 'dbname='.$dcs['host'].';';
 
+				// DB Scheme
+				$scheme = 'mysql';
+
 				// User Authentication
 				if(!empty($dcs['user'])) $username = $dcs['user'];
 				if(!empty($dcs['pass'])) $password = $dcs['pass'];
@@ -116,6 +124,9 @@ class Connection {
 				// Database name
 				$dsn .= 'dbname='.substr($dcs['path'], 1).';';
 
+				// DB Scheme
+				$scheme = 'pgsql';
+
 				// User Authentication
 				if(!empty($dcs['user'])) $dsn .= 'user='.$dcs['user'].';';
 				if(!empty($dcs['pass'])) $dsn .= 'password='.$dcs['pass'].';';
@@ -133,6 +144,9 @@ class Connection {
 				// Use disk storage
 				if(!empty($dcs['path']) && empty($dcs['host']))
 					$dsn .= $dcs['path'];
+
+				// DB Scheme
+				$scheme = 'sqlite';
 			break;
 
 			// SQLite 2 Connection
@@ -146,6 +160,9 @@ class Connection {
 				// Use disk storage
 				if(!empty($dcs['path']) && empty($dcs['host']))
 					$dsn .= $dcs['path'];
+
+				// DB Scheme
+				$scheme = 'sqlite2';
 			break;
 		}
 
@@ -156,7 +173,7 @@ class Connection {
 	/**
 	 * Construct Database Connection Instance
 	 * @author Kelly Becker
-	 * @since Oct 22nd, 2012
+	 * @since Nov 3rd, 2012
 	 */
 	public function __construct($slug) {
 
@@ -174,7 +191,7 @@ class Connection {
 		);
 
 		// Parse the connection uri
-		$dsn = $this->__parseDSN($url, $username, $password);
+		$dsn = $this->__parseDSN($url, $username, $password, $scheme);
 
 		try {
 			// Create the PDO Instance
@@ -182,9 +199,26 @@ class Connection {
 
 			// Instantiate a new query log
 			self::$__queryLog[$slug] = array();
+			
+			switch($scheme) {
+				case 'mysql':
+					// Run a test query to make sure everything is set
+					$this->__query("SHOW TABLES", false, true);
 
-			// Run a test query to make sure everything is set
-			$this->__query('SHOW TABLES', false, true);
+					// Set the server timezone offset
+					$this->__query("SET `time_zone` = '+00:00';", false, true);	
+				break;
+				case 'pgsql':
+					// Run a test query to make sure everything is set
+					$this->__query("SELECT * FROM `pg_catalog`.`pg_tables`", false, true);
+
+					// Set the server timezone offset
+					$this->__query("SET TIME ZONE UTC;", false, true);	
+				break;
+			}
+
+			// Add the scheme to the connection class
+			$this->__scheme = $scheme;
 		}
 
 		// If there was a PDOException
@@ -205,7 +239,7 @@ class Connection {
 
 		try {
 			// Prepare query
-			$result = self::$__connection[$this->slug]->prepare($query);
+			$result = $this->getConnection()->prepare($query);
 
 			// Run query
 			$result->execute();
@@ -249,6 +283,15 @@ class Connection {
 
 		// Return QueryResult
 		return new QueryResult($this, $result);
+	}
+
+	/**
+	 * Get SQL Connection
+	 * @author Kelly Becker
+	 * @since Nov 3rd, 2012
+	 */
+	public final function getConnection() {
+		return self::$__connection[$this->slug];
 	}
 
 	/**
@@ -312,6 +355,52 @@ class Connection {
 	}
 
 	/**
+	 * Update a table row
+	 * @author Kelly Becker
+	 * @since Nov 3rd, 2012
+	 */
+	public function update($table, $data, $where) {
+		$query = array("UPDATE `$table`");
+
+		// Set Args
+		$sets = Utility::querify($this->getConnection(), $table, $data, ', ');
+		if(!empty($sets)) $query[] = 'SET '.$sets;
+
+		// Where Args
+		if(is_array($where))
+			$wheres = Utility::querify($this->getConnection(), $table, $where);
+			if(!empty($wheres)) $query[] = 'WHERE '.$wheres;
+		elseif(Utility::is_numeric($where))
+			$query[] = "WHERE `$table`.`id` = $where";
+
+		return $this->query(implode(' ',$query));
+	}
+
+	/**
+	 * Insert a table row
+	 * @author Kelly Becker
+	 * @since Nov 3rd, 2012
+	 */
+	public function insert($table, $data) {
+		$query = array("REPLACE INTO `$table`");
+
+		// Set Args
+		$sets = Utility::querify($this->getConnection(), $table, $data, ', ');
+		if(!empty($sets)) $query[] = 'SET '.$sets;
+
+		return $this->query(implode(' ',$query));
+	}
+
+	/**
+	 * Upsert
+	 * @author Kelly Becker
+	 * @since Nov 3rd, 2012
+	 */
+	public function upsert($table, $data) {
+		return $this->query($table, $data);
+	}
+
+	/**
 	 * Get a list object
 	 * @author Kelly Becker
 	 * @since Oct 22nd, 2012
@@ -332,11 +421,20 @@ class Connection {
 	/**
 	 * Get the table columns
 	 * @author Kelly Becker
-	 * @since Oct 22nd, 2012
+	 * @since Nov 3rd, 2012
 	 */
-	public function getColumns($table) {
-		if(e::$cache->timestamp('sql_table_columns', $table) > (time() - 86400))
-			return e::$cache->get('sql_table_columns', $table);
+	public function getColumns($table, $more = true) {
+
+		// See if we have a cache of the columns
+		if(e::$cache->timestamp('sql_table_columns', $table) > (time() - 86400)) {
+
+			// Load from cache
+			$data = e::$cache->get('sql_table_columns', $table);
+
+			// Return just fields
+			if(!$more) foreach($data as &$val) $val = null;
+			return $data;
+		}
 
 		// Describe the table
 		$columns = $this->query("DESCRIBE `$table`;");
@@ -351,6 +449,10 @@ class Connection {
 
 			// Cache the columns and return
 			e::$cache->store('sql_table_columns', $table, $fields);
+
+			// Return just fields
+			if(!$more) foreach($fields as &$val) $val = null;
+
 			return $fields;
 		}
 
